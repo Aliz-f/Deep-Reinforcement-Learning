@@ -9,8 +9,9 @@ from keras.activations import relu
 import matplotlib.pyplot as plt
 
 # Gray scale marks for cells
-visited_mark = 0.9
-flag_mark = 0.65
+#! visited_mark = 0.9
+diamond_mark = 0.65
+home_mark = 0.75
 agent_mark = 0.5
 
 # Actions
@@ -29,83 +30,148 @@ num_actions = len(actions_dict)
 
 class TdfMaze(object):
     """
-    Tour De Flags maze object
+    Tour De diamonds maze object
     maze: a 2d Numpy array of floats between 0 to 1:
-        1.00 - a free cell (white)
-        0.65 - flag cell (65% gray)
-        0.50 - agent cell (50% gray)
-        0.00 - an occupied cell (black)
+        1.00 - a free cell
+        0.65 - diamond cell
+        0.75 - home cell
+        0.50 - agent cell
+        0.00 - an occupied cell
     agent: (row, col) initial agent position (defaults to (0,0))
-    flags: list of cells occupied by flags
+    diamonds: list of cells occupied by diamonds
     """
-    def __init__(self, maze, flags, agent=(0,0), target=None):
+    #! Set agent location
+    #! list of diamonds
+    def __init__(self, maze, diamonds, agent=(0,0), target=None):
+        #* Set _maze with np object
         self._maze = np.array(maze)
-        self._flags = set(flags)
+        
+        #* set diamond location
+        self._diamonds = set(diamonds)
+        
+        #* Set map size
         nrows, ncols = self._maze.shape
+        
+        #? set target ==> we Need it?
         if target is None:
-            self.target = (nrows-1, ncols-1)   # default target cell where the agent to deliver the "flags"
+            self.target = (nrows-1, ncols-1)   # default target cell where the agent to deliver the "diamonds"
+        
+        #* Set free cells
         self.free_cells = set((r,c) for r in range(nrows) for c in range(ncols) if self._maze[r,c] == 1.0)
+        
+        #* Remove target location from free cells 
         self.free_cells.discard(self.target)
-        self.free_cells -= self._flags
+        
+        #* Remove diamonds location from free cells
+        self.free_cells -= self._diamonds
+        
+        #? check error ==> We need it?
         if self._maze[self.target] == 0.0:
             raise Exception("Invalid maze: target cell cannot be blocked!")
         if not agent in self.free_cells:
             raise Exception("Invalid agent Location: must sit on a free cell")
+        
+        
         self.reset(agent)
 
+    #! Set agent location
     def reset(self, agent=(0,0)):
+        #* Set agent location
         self.agent = agent
+        
+        #* Copy from _maze
         self.maze = np.copy(self._maze)
-        self.flags = set(self._flags)
+        
+        #* Set diamonds from _diamonds
+        self.diamonds = set(self._diamonds)
+        
+        #* Set map size
         nrows, ncols = self.maze.shape
+        
+        #* Set agent location 
         row, col = agent
+        
+        #* Mark the agent location
         self.maze[row, col] = agent_mark
+        
+        #* Initial the state
         self.state = ((row, col), 'start')
+        
+        #! WHAT?
         self.diameter = np.sqrt(self.maze.size)
+        
+        #? Set visited home ==> We need it?
         self.visited = dict(((r,c),0) for r in range(nrows) for c in range(ncols) if self._maze[r,c] == 1.0)
+        
+        #* Total Reward
         self.total_reward = 0
+        
+        #* Set for end game
         self.min_reward = -0.5 * self.maze.size
+        
+        #! Dict for our rewards ==> we should update it
         self.reward = {
             'blocked':  self.min_reward,
-            'flag':     1.0/len(self._flags),
+            'diamond':     1.0/len(self._diamonds),
             'invalid': -4.0/self.diameter,
             'valid':   -1.0/self.maze.size
         }
 
     def act(self, action):
+        #* Update state
         self.update_state(action)
+        
+        #* Calculate reward
         reward = self.get_reward()
+        
+        #* Calculate total reward
         self.total_reward += reward
+        
+        #* Set game Status == win? == lose? == ongoing?
         status = self.game_status()
+        
+        #? draw and observe the env ==> We need it?
         env_state = self.observe()
+        
         return env_state, reward, status
 
+    #! Need Update
     def get_reward(self):
         agent, mode = self.state
         if agent == self.target:
-            return 1.0 - len(self.flags) / len(self._flags)
+            return 1.0 - len(self.diamonds) / len(self._diamonds)
         if mode == 'blocked':
             return self.reward['blocked']
-        elif agent in self.flags:
-            return self.reward['flag']
+        elif agent in self.diamonds:
+            return self.reward['diamond']
         elif mode == 'invalid':
             return self.reward['invalid']
         elif mode == 'valid':
             return self.reward['valid'] #* (1 + 0.1*self.visited[agent] ** 2)
 
     def update_state(self, action):
+        #* Set map size
         nrows, ncols = self.maze.shape
+        
+        #* Set agent location and mode | mode == 'start' or 'blocked' or 'valid' or 'invalid'
         (nrow, ncol), nmode = agent, mode = self.state
 
+        #? Set visited list ==> we Need it?
         if self.maze[agent] > 0.0:
             self.visited[agent] += 1  # mark visited cell
-        if agent in self.flags:
-            self.flags.remove(agent)
+        
+        #* Remove diamonds that we collected
+        if agent in self.diamonds:
+            self.diamonds.remove(agent)
 
+        #* set action ==> valid_action == number of list for each move (0=left ... 3=down) | it can be empty list
         valid_actions = self.valid_actions()
 
+        #* there is no action 
         if not valid_actions:
             nmode = 'blocked'
+        
+        #* list of valid_action is not empty
         elif action in valid_actions:
             nmode = 'valid'
             if action == LEFT:
@@ -128,7 +194,7 @@ class TdfMaze(object):
             return 'lose'
         agent, mode = self.state
         if agent == self.target:
-            if len(self.flags) == 0:
+            if len(self.diamonds) == 0:
                 return 'win'
             else:
                 return 'lose'
@@ -148,9 +214,9 @@ class TdfMaze(object):
             for c in range(ncols):
                 if canvas[r,c] > 0.0:
                     canvas[r,c] = 1.0
-        # draw the flags
-        for r,c in self.flags:
-            canvas[r,c] = flag_mark
+        # draw the diamonds
+        for r,c in self.diamonds:
+            canvas[r,c] = diamond_mark
         # draw the agent
         agent, mode = self.state
         canvas[agent] = agent_mark
@@ -232,7 +298,7 @@ class Experience(object):
 class Qtraining(object):
     def __init__(self, model, env, **opt):
         self.model = model  # Nueral Network Model
-        self.env = env  # Environment (Tour De Flags maze object)
+        self.env = env  # Environment (Tour De diamonds maze object)
         self.n_epoch = opt.get('n_epoch', 1000)  # Number of epochs to run
         self.max_memory = opt.get('max_memory', 4*self.env.maze.size)  # Max memory for experiences
         self.data_size = opt.get('data_size', int(0.75*self.env.maze.size))  # Data samples from experience replay
@@ -272,8 +338,8 @@ class Qtraining(object):
             dt = datetime.datetime.now() - start_time
             self.seconds = dt.total_seconds()
             t = format_time(self.seconds)
-            fmt = "Epoch: {:3d}/{:d} | Loss: {:.4f} | Episodes: {:4d} | Wins: {:2d} | flags: {:d} | e: {:.3f} | time: {}"
-            print(fmt.format(epoch, self.n_epoch-1, self.loss, self.n_episodes, self.win_count, len(self.env.flags), self.epsilon(), t))
+            fmt = "Epoch: {:3d}/{:d} | Loss: {:.4f} | Episodes: {:4d} | Wins: {:2d} | diamonds: {:d} | e: {:.3f} | time: {}"
+            print(fmt.format(epoch, self.n_epoch-1, self.loss, self.n_episodes, self.win_count, len(self.env.diamonds), self.epsilon(), t))
             if self.win_count > 2:
                 if self.completion_check():
                     print("Completed training at epoch: %d" % (epoch,))
@@ -392,8 +458,8 @@ def show_env(env, fname=None):
     for cell in env.visited:
         if env.visited[cell]:
             canvas[cell] = visited_mark
-    for cell in env.flags:
-        canvas[cell] = flag_mark
+    for cell in env.diamonds:
+        canvas[cell] = diamond_mark
     img = plt.imshow(canvas, interpolation='none', cmap='gray')
     if fname:
         plt.savefig(fname)
