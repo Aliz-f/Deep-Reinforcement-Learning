@@ -185,13 +185,16 @@ class TdfMaze(object):
         else:                  # invalid action, no change in agent position
             nmode = 'invalid'
 
-        # new state
+        #* Update state with new location for agent and mode
         agent = (nrow, ncol)
         self.state = (agent, nmode)
 
     def game_status(self):
+        #* Check for end game
         if self.total_reward < self.min_reward:
             return 'lose'
+        
+        #* if agent in target cell and diamond list is empty we win != we lose
         agent, mode = self.state
         if agent == self.target:
             if len(self.diamonds) == 0:
@@ -201,11 +204,13 @@ class TdfMaze(object):
 
         return 'ongoing'
 
+    #? We need it? what?
     def observe(self):
         canvas = self.draw_env()
         env_state = canvas.reshape((1, -1))
         return env_state
 
+    #? Draw envirmonet ==> we need it?
     def draw_env(self):
         canvas = np.copy(self.maze)
         nrows, ncols = self.maze.shape
@@ -222,6 +227,7 @@ class TdfMaze(object):
         canvas[agent] = agent_mark
         return canvas
 
+    #* Generate valid action ==> return list of 
     def valid_actions(self, cell=None):
         if cell is None:
             (row, col), mode = self.state
