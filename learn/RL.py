@@ -7,9 +7,15 @@ from keras.layers.advanced_activations import PReLU
 from keras.layers.advanced_activations import LeakyReLU
 from keras.activations import relu
 import matplotlib.pyplot as plt
+from base.base import Actions
+
+# TODO 1: mode ==> Carying = dict() diamond number = key | score = value
+# TODO 2: function reward need updated
+# TODO 3: set target 
+# TODO 4:   
 
 # Gray scale marks for cells
-#! visited_mark = 0.9
+visited_mark = 0.9
 diamond_mark = 0.65
 home_mark = 0.75
 agent_mark = 0.5
@@ -19,11 +25,30 @@ LEFT = 0
 UP = 1
 RIGHT = 2
 DOWN = 3
+
 actions_dict = {
-    LEFT:  'left',
-    UP:    'up',
-    RIGHT: 'right',
-    DOWN:  'down',
+    LEFT:  Actions.LEFT,
+    UP:    Actions.UP,
+    RIGHT: Actions.RIGHT,
+    DOWN:  Actions.DOWN,
+}
+
+diamond_dict = {
+    0:2,
+    1:5,
+    2:3,
+    3:1,
+    4:10
+}
+
+mode_dict = {
+    'start' :   'start',
+    'valid' :   'valid',
+    'invalid':  'invalid',
+    'blocked' : 'blocked',
+    'carying':  diamond_dict,
+    'diamond':  diamond_dict,
+    'home':     diamond_dict
 }
 
 num_actions = len(actions_dict)
@@ -42,17 +67,19 @@ class TdfMaze(object):
     """
     #! Set agent location
     #! list of diamonds
-    def __init__(self, maze, diamonds, agent=(0,0), target=None):
+    #TODO Need update
+    def __init__(self, maze, diamonds, homes, agent=(0,0), target=None):
         #* Set _maze with np object
         self._maze = np.array(maze)
         
-        #* set diamond location
+        #* set diamond location and home location
         self._diamonds = set(diamonds)
+        self._homes = set(homes)
         
         #* Set map size
         nrows, ncols = self._maze.shape
         
-        #? set target ==> we Need it?
+        #! set target ==> we Need it?
         if target is None:
             self.target = (nrows-1, ncols-1)   # default target cell where the agent to deliver the "diamonds"
         
@@ -64,7 +91,7 @@ class TdfMaze(object):
         
         #* Remove diamonds location from free cells
         self.free_cells -= self._diamonds
-        
+                
         #? check error ==> We need it?
         if self._maze[self.target] == 0.0:
             raise Exception("Invalid maze: target cell cannot be blocked!")
@@ -74,7 +101,7 @@ class TdfMaze(object):
         
         self.reset(agent)
 
-    #! Set agent location
+    #TODO Need Update
     def reset(self, agent=(0,0)):
         #* Set agent location
         self.agent = agent
@@ -82,9 +109,10 @@ class TdfMaze(object):
         #* Copy from _maze
         self.maze = np.copy(self._maze)
         
-        #* Set diamonds from _diamonds
+        #* Set diamonds from _diamonds and homes from _homes
         self.diamonds = set(self._diamonds)
-        
+        self.homes = set(self._homes)
+
         #* Set map size
         nrows, ncols = self.maze.shape
         
@@ -95,7 +123,7 @@ class TdfMaze(object):
         self.maze[row, col] = agent_mark
         
         #* Initial the state
-        self.state = ((row, col), 'start')
+        self.state = ((row, col),(mode_dict.get('start'),''))
         
         #! WHAT?
         self.diameter = np.sqrt(self.maze.size)
@@ -112,9 +140,14 @@ class TdfMaze(object):
         #! Dict for our rewards ==> we should update it
         self.reward = {
             'blocked':  self.min_reward,
-            'diamond':     1.0/len(self._diamonds),
+            # 'diamond':     1.0/len(self._diamonds),
             'invalid': -4.0/self.diameter,
-            'valid':   -1.0/self.maze.size
+            'valid':   -1.0/self.maze.size,
+            0 : mode_dict['carying'].get(0),
+            1 : mode_dict['carying'].get(1),
+            2 : mode_dict['carying'].get(2),
+            3 : mode_dict['carying'].get(3),
+            4 : mode_dict['carying'].get(4)
         }
 
     def act(self, action):
@@ -135,21 +168,84 @@ class TdfMaze(object):
         
         return env_state, reward, status
 
-    #! Need Update
+    #TODO Need Update
     def get_reward(self):
+        
         agent, mode = self.state
+        fmode , smode = mode
+        #! Update it
         if agent == self.target:
             return 1.0 - len(self.diamonds) / len(self._diamonds)
-        if mode == 'blocked':
+        
+        # elif agent in self.diamonds:
+        #     return self.reward['diamond']
+        
+        
+        #* Check for blocked :
+        if fmode == mode_dict.get('blocked'):
             return self.reward['blocked']
-        elif agent in self.diamonds:
-            return self.reward['diamond']
-        elif mode == 'invalid':
-            return self.reward['invalid']
-        elif mode == 'valid':
-            return self.reward['valid'] #* (1 + 0.1*self.visited[agent] ** 2)
+        
+        
+        #* Check for valid and home cell:
+        elif fmode == mode_dict.get('valid') and smode == mode_dict['home'].get(0):
+            pass
+        
+        elif fmode == mode_dict.get('valid') and smode == mode_dict['home'].get(1):
+            pass
+        
+        elif fmode == mode_dict.get('valid') and smode == mode_dict['home'].get(2):
+            pass
+        
+        elif fmode == mode_dict.get('valid') and smode == mode_dict['home'].get(3):
+            pass
+        
+        elif fmode == mode_dict.get('valid') and smode == mode_dict['home'].get(4):
+            pass
+        
+        
+        #* Check for valid and diamond cell
+        elif fmode == mode_dict.get('valid') and smode == mode_dict['diamond'].get(0):
+            pass
+        
+        elif fmode == mode_dict.get('valid') and smode == mode_dict['diamond'].get(1):
+            pass
+        
+        elif fmode == mode_dict.get('valid') and smode == mode_dict['diamond'].get(2):
+            pass
 
+        elif fmode == mode_dict.get('valid') and smode == mode_dict['diamond'].get(3):
+            pass
+
+        elif fmode == mode_dict.get('valid') and smode == mode_dict['diamond'].get(4):
+            pass
+        
+        
+        #* Check for valid and carying diamond
+        elif fmode == mode_dict.get('valid') and smode == mode_dict['carying'].get(0):
+            pass
+
+        elif fmode == mode_dict.get('valid') and smode == mode_dict['carying'].get(1):
+            pass   
+        
+        elif fmode == mode_dict.get('valid') and smode == mode_dict['carying'].get(2):
+            pass
+        
+        elif fmode == mode_dict.get('valid') and smode == mode_dict['carying'].get(3):
+            pass
+
+        elif fmode == mode_dict.get('valid') and smode == mode_dict['carying'].get(4):
+            pass
+        
+        #* Check for invalid :
+        elif fmode == mode_dict.get('invalid'):
+            return self.reward['invalid']
+        
+        # elif mode == mode_dict.get('valid'):
+        #     return self.reward['valid'] #* (1 + 0.1*self.visited[agent] ** 2)
+
+    #TODO Need Update
     def update_state(self, action):
+        
         #* Set map size
         nrows, ncols = self.maze.shape
         
@@ -161,19 +257,21 @@ class TdfMaze(object):
             self.visited[agent] += 1  # mark visited cell
         
         #* Remove diamonds that we collected
-        if agent in self.diamonds:
-            self.diamonds.remove(agent)
+        # if agent in self.diamonds:
+        #     self.diamonds.remove(agent)   
+
+        
 
         #* set action ==> valid_action == number of list for each move (0=left ... 3=down) | it can be empty list
         valid_actions = self.valid_actions()
 
         #* there is no action 
         if not valid_actions:
-            nmode = 'blocked'
+            nmode = mode_dict.get('blocked') 
         
         #* list of valid_action is not empty
         elif action in valid_actions:
-            nmode = 'valid'
+            nmode = mode_dict.get('valid')
             if action == LEFT:
                 ncol -= 1
             elif action == UP:
@@ -183,7 +281,7 @@ class TdfMaze(object):
             elif action == DOWN:
                 nrow += 1
         else:                  # invalid action, no change in agent position
-            nmode = 'invalid'
+            nmode = mode_dict.get('invalid')
 
         #* Update state with new location for agent and mode
         agent = (nrow, ncol)
@@ -204,7 +302,6 @@ class TdfMaze(object):
 
         return 'ongoing'
 
-    #? We need it? what?
     def observe(self):
         canvas = self.draw_env()
         env_state = canvas.reshape((1, -1))
