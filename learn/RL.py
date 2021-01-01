@@ -18,6 +18,8 @@ from base.base import Action
 # TODO 2: function reward need updated Done
 # TODO 3: set target
 # TODO 4:
+rewards = []
+epoches = []
 # Gray scale marks for cells
 visited_mark = 0.9
 diamond_mark = 0.65
@@ -204,35 +206,35 @@ class TdfMaze(object):
 
         # * Check for valid and home cell:
         elif fmode == mode_dict.get('valid') and smode == mode_dict['home'].get(0):
-            return self.reward['home'].get(0)/2
+            return self.reward['carying'].get(0)/2
 
         elif fmode == mode_dict.get('valid') and smode == mode_dict['home'].get(1):
-            return self.reward['home'].get(1)/2
+            return self.reward['carying'].get(1)/2
 
         elif fmode == mode_dict.get('valid') and smode == mode_dict['home'].get(2):
-            return self.reward['home'].get(2)/2
+            return self.reward['carying'].get(2)/2
 
         elif fmode == mode_dict.get('valid') and smode == mode_dict['home'].get(3):
-            return self.reward['home'].get(3)/2
+            return self.reward['carying'].get(3)/2
 
         elif fmode == mode_dict.get('valid') and smode == mode_dict['home'].get(4):
-            return self.reward['home'].get(4)/2
+            return self.reward['carying'].get(4)/2
 
         # * Check for valid and diamond cell
         elif fmode == mode_dict.get('valid') and smode == mode_dict['diamond'].get(0):
-            return self.reward['home'].get(0)/2
+            return self.reward['carying'].get(0)/2
 
         elif fmode == mode_dict.get('valid') and smode == mode_dict['diamond'].get(1):
-            return self.reward['home'].get(1)/2
+            return self.reward['carying'].get(1)/2
 
         elif fmode == mode_dict.get('valid') and smode == mode_dict['diamond'].get(2):
-            return self.reward['home'].get(2)/2
+            return self.reward['carying'].get(2)/2
 
         elif fmode == mode_dict.get('valid') and smode == mode_dict['diamond'].get(3):
-            return self.reward['home'].get(3)/2
+            return self.reward['carying'].get(3)/2
 
         elif fmode == mode_dict.get('valid') and smode == mode_dict['diamond'].get(4):
-            return self.reward['home'].get(4)/2
+            return self.reward['carying'].get(4)/2
 
         # * Check for valid and carying diamond
         elif fmode == mode_dict.get('valid') and smode == mode_dict['carying']:
@@ -494,6 +496,8 @@ class Qtraining(object):
 
             dt = datetime.datetime.now() - start_time
             self.seconds = dt.total_seconds()
+            epoches.append(epoch)
+            rewards.append(self.env.total_reward)
             t = format_time(self.seconds)
             fmt = "Epoch: {:3d}/{:d} | Loss: {:.4f} | Episodes: {:4d} | Wins: {:2d} | diamonds: {:d} | e: {:.3f} | time: {}"
             print(fmt.format(epoch, self.n_epoch-1, self.loss, self.n_episodes,
@@ -502,6 +506,7 @@ class Qtraining(object):
                 if self.completion_check():
                     print("Completed training at epoch: %d" % (epoch,))
                     break
+        draw_chart(rewards, epoches)
 
     def play(self):
         action = self.action()
@@ -637,3 +642,8 @@ def format_time(seconds):
     else:
         h = seconds / 3600.0
         return "%.2f hours" % (h,)
+
+
+def draw_chart(x_axis, y_axis):
+    plt.plot(x_axis, y_axis)
+    plt.show()
