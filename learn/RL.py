@@ -206,35 +206,35 @@ class TdfMaze(object):
 
         # * Check for valid and home cell:
         elif fmode == mode_dict.get('valid') and smode == mode_dict['home'].get(0):
-            return self.reward['carying'].get(0)/2
+            return self.reward[0]/2
 
         elif fmode == mode_dict.get('valid') and smode == mode_dict['home'].get(1):
-            return self.reward['carying'].get(1)/2
+            return self.reward[1]/2
 
         elif fmode == mode_dict.get('valid') and smode == mode_dict['home'].get(2):
-            return self.reward['carying'].get(2)/2
+            return self.reward[2]/2
 
         elif fmode == mode_dict.get('valid') and smode == mode_dict['home'].get(3):
-            return self.reward['carying'].get(3)/2
+            return self.reward[3]/2
 
         elif fmode == mode_dict.get('valid') and smode == mode_dict['home'].get(4):
-            return self.reward['carying'].get(4)/2
+            return self.reward[4]/2
 
         # * Check for valid and diamond cell
         elif fmode == mode_dict.get('valid') and smode == mode_dict['diamond'].get(0):
-            return self.reward['carying'].get(0)/2
+            return self.reward[0]/2
 
         elif fmode == mode_dict.get('valid') and smode == mode_dict['diamond'].get(1):
-            return self.reward['carying'].get(1)/2
+            return self.reward[1]/2
 
         elif fmode == mode_dict.get('valid') and smode == mode_dict['diamond'].get(2):
-            return self.reward['carying'].get(2)/2
+            return self.reward[2]/2
 
         elif fmode == mode_dict.get('valid') and smode == mode_dict['diamond'].get(3):
-            return self.reward['carying'].get(3)/2
+            return self.reward[3]/2
 
         elif fmode == mode_dict.get('valid') and smode == mode_dict['diamond'].get(4):
-            return self.reward['carying'].get(4)/2
+            return self.reward[4]/2
 
         # * Check for valid and carying diamond
         elif fmode == mode_dict.get('valid') and smode == mode_dict['carying']:
@@ -242,18 +242,6 @@ class TdfMaze(object):
 
         elif fmode == mode_dict.get('valid'):
             return self.reward['valid']
-
-        # elif fmode == mode_dict.get('valid') and smode == mode_dict['carying'].get(1):
-        #     pass
-
-        # elif fmode == mode_dict.get('valid') and smode == mode_dict['carying'].get(2):
-        #     pass
-
-        # elif fmode == mode_dict.get('valid') and smode == mode_dict['carying'].get(3):
-        #     pass
-
-        # elif fmode == mode_dict.get('valid') and smode == mode_dict['carying'].get(4):
-        #     pass
 
         # * Check for invalid :
         elif fmode == mode_dict.get('invalid'):
@@ -298,12 +286,13 @@ class TdfMaze(object):
             smode = mode_dict['valid']
 
         # * Remove diamonds that we collected
-        if agent in self.diamonds and not smode == mode_dict['carying']:
+        if not smode == mode_dict['carying']:
             for d in self.diamonds:
                 x, y, score = d
                 if agent == (x, y):
                     smode = mode_dict['diamond'].get(score)
-            self.diamonds.remove(agent)
+                    self.diamonds.remove(d)
+                    break
 
         # * the agent is in a base with a diamond
         if agent in self.homes and smode == mode_dict['carying']:
@@ -322,13 +311,13 @@ class TdfMaze(object):
         # * list of valid_action is not empty
         elif action in valid_actions:
             fmode = mode_dict.get('valid')
-            if action == actions_dict[LEFT]:
+            if action == LEFT:
                 ncol -= 1
-            elif action == actions_dict[UP]:
+            elif action == UP:
                 nrow -= 1
-            elif action == actions_dict[RIGHT]:
+            elif action == RIGHT:
                 ncol += 1
-            elif action == actions_dict[DOWN]:
+            elif action == DOWN:
                 nrow += 1
         else:                  # invalid action, no change in agent position
             fmode, smode = mode_dict.get('invalid'), None
@@ -365,7 +354,7 @@ class TdfMaze(object):
                 if canvas[r, c] > 0.0:
                     canvas[r, c] = 1.0
         # draw the diamonds
-        for r, c in self.diamonds:
+        for r, c, t in self.diamonds:
             canvas[r, c] = diamond_mark
         # draw the agent
         agent, mode = self.state
@@ -502,11 +491,11 @@ class Qtraining(object):
             fmt = "Epoch: {:3d}/{:d} | Loss: {:.4f} | Episodes: {:4d} | Wins: {:2d} | diamonds: {:d} | e: {:.3f} | time: {}"
             print(fmt.format(epoch, self.n_epoch-1, self.loss, self.n_episodes,
                              self.win_count, len(self.env.diamonds), self.epsilon(), t))
-            if self.win_count > 2:
+            if self.win_count > 4:
                 if self.completion_check():
                     print("Completed training at epoch: %d" % (epoch,))
                     break
-        draw_chart(rewards, epoches)
+        draw_chart(epoches, rewards)
 
     def play(self):
         action = self.action()
@@ -552,6 +541,14 @@ class Qtraining(object):
                 return True
             elif game_status == 'lose':
                 return False
+
+    def play_game(self):
+        env_state = self.env.observe()
+        q = self.model.predict(env_state)
+        action = np.argmax(q[0])
+        prev_env_state = env_state
+        env_state, reward, game_status = self.env.act(action)
+        return actions_dict[action]
 
     def action(self):
         # Get next action
@@ -646,4 +643,4 @@ def format_time(seconds):
 
 def draw_chart(x_axis, y_axis):
     plt.plot(x_axis, y_axis)
-    plt.show()
+    # plt.show()

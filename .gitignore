@@ -1,3 +1,6 @@
 venv
 __pychache__
 test.py
+map1/
+ourMap/
+*.txt
