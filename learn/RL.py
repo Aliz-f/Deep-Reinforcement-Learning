@@ -1,18 +1,23 @@
-import os, sys, time, datetime, json, random
+import os
+import sys
+import time
+import datetime
+import json
+import random
 import numpy as np
 from keras.models import Sequential
 from keras.layers.core import Dense, Activation
-from keras.optimizers import SGD , Adam, RMSprop
+from keras.optimizers import SGD, Adam, RMSprop
 from keras.layers.advanced_activations import PReLU
 from keras.layers.advanced_activations import LeakyReLU
 from keras.activations import relu
 import matplotlib.pyplot as plt
 from base.base import Actions
 
-# TODO 1: mode ==> Carying = dict() diamond number = key | score = value
-# TODO 2: function reward need updated
-# TODO 3: set target 
-# TODO 4:   
+# TODO 1: mode ==> Carying = dict() diamond number = key | score = value Done
+# TODO 2: function reward need updated Done
+# TODO 3: set target
+# TODO 4:
 
 # Gray scale marks for cells
 visited_mark = 0.9
@@ -34,24 +39,25 @@ actions_dict = {
 }
 
 diamond_dict = {
-    0:2,
-    1:5,
-    2:3,
-    3:1,
-    4:10
+    0: 2,
+    1: 5,
+    2: 3,
+    3: 1,
+    4: 10
 }
 
 mode_dict = {
-    'start' :   'start',
-    'valid' :   'valid',
+    'start':   'start',
+    'valid':   'valid',
     'invalid':  'invalid',
-    'blocked' : 'blocked',
+    'blocked': 'blocked',
     'carying':  diamond_dict,
     'diamond':  diamond_dict,
     'home':     diamond_dict
 }
 
 num_actions = len(actions_dict)
+
 
 class TdfMaze(object):
     """
@@ -67,232 +73,252 @@ class TdfMaze(object):
     """
     #! Set agent location
     #! list of diamonds
-    #TODO Need update
-    def __init__(self, maze, diamonds, homes, agent=(0,0), target=None):
-        #* Set _maze with np object
+    # TODO Need update
+
+    def __init__(self, maze, diamonds, homes, agent=(0, 0), target=None):
+        # * Set _maze with np object
         self._maze = np.array(maze)
-        
-        #* set diamond location and home location
+
+        # * set diamond location and home location
         self._diamonds = set(diamonds)
         self._homes = set(homes)
-        
-        #* Set map size
+
+        # * Set map size
         nrows, ncols = self._maze.shape
-        
+
         #! set target ==> we Need it?
         if target is None:
-            self.target = (nrows-1, ncols-1)   # default target cell where the agent to deliver the "diamonds"
-        
-        #* Set free cells
-        self.free_cells = set((r,c) for r in range(nrows) for c in range(ncols) if self._maze[r,c] == 1.0)
-        
-        #* Remove target location from free cells 
+            # default target cell where the agent to deliver the "diamonds"
+            self.target = (nrows-1, ncols-1)
+
+        # * Set free cells
+        self.free_cells = set((r, c) for r in range(nrows)
+                              for c in range(ncols) if self._maze[r, c] == 1.0)
+
+        # * Remove target location from free cells
         self.free_cells.discard(self.target)
-        
-        #* Remove diamonds location from free cells
+
+        # * Remove diamonds location from free cells
         self.free_cells -= self._diamonds
-                
-        #? check error ==> We need it?
+
+        # ? check error ==> We need it?
         if self._maze[self.target] == 0.0:
             raise Exception("Invalid maze: target cell cannot be blocked!")
         if not agent in self.free_cells:
             raise Exception("Invalid agent Location: must sit on a free cell")
-        
-        
+
         self.reset(agent)
 
-    #TODO Need Update
-    def reset(self, agent=(0,0)):
-        #* Set agent location
+    # TODO Need Update
+    def reset(self, agent=(0, 0)):
+        # * Set agent location
         self.agent = agent
-        
-        #* Copy from _maze
+
+        # * Copy from _maze
         self.maze = np.copy(self._maze)
-        
-        #* Set diamonds from _diamonds and homes from _homes
+
+        # * Set diamonds from _diamonds and homes from _homes
         self.diamonds = set(self._diamonds)
         self.homes = set(self._homes)
 
-        #* Set map size
+        # * Set map size
         nrows, ncols = self.maze.shape
-        
-        #* Set agent location 
+
+        # * Set agent location
         row, col = agent
-        
-        #* Mark the agent location
+
+        # * Mark the agent location
         self.maze[row, col] = agent_mark
-        
-        #* Initial the state
-        self.state = ((row, col),(mode_dict.get('start'),''))
-        
+
+        # * Initial the state
+        self.state = ((row, col), (mode_dict.get('start'), ''))
+
         #! WHAT?
         self.diameter = np.sqrt(self.maze.size)
-        
-        #? Set visited home ==> We need it?
-        self.visited = dict(((r,c),0) for r in range(nrows) for c in range(ncols) if self._maze[r,c] == 1.0)
-        
-        #* Total Reward
+
+        # ? Set visited home ==> We need it?
+        self.visited = dict(((r, c), 0) for r in range(nrows)
+                            for c in range(ncols) if self._maze[r, c] == 1.0)
+
+        # * Total Reward
         self.total_reward = 0
-        
-        #* Set for end game
+
+        # * Set for end game
         self.min_reward = -0.5 * self.maze.size
-        
+
         #! Dict for our rewards ==> we should update it
         self.reward = {
             'blocked':  self.min_reward,
             # 'diamond':     1.0/len(self._diamonds),
             'invalid': -4.0/self.diameter,
-            'valid':   -1.0/self.maze.size,
-            0 : mode_dict['carying'].get(0),
-            1 : mode_dict['carying'].get(1),
-            2 : mode_dict['carying'].get(2),
-            3 : mode_dict['carying'].get(3),
-            4 : mode_dict['carying'].get(4)
+            'valid': -1.0/self.maze.size,
+            0: mode_dict['carying'].get(0),
+            1: mode_dict['carying'].get(1),
+            2: mode_dict['carying'].get(2),
+            3: mode_dict['carying'].get(3),
+            4: mode_dict['carying'].get(4)
         }
 
     def act(self, action):
-        #* Update state
+        # * Update state
         self.update_state(action)
-        
-        #* Calculate reward
+
+        # * Calculate reward
         reward = self.get_reward()
-        
-        #* Calculate total reward
+
+        # * Calculate total reward
         self.total_reward += reward
-        
-        #* Set game Status == win? == lose? == ongoing?
+
+        # * Set game Status == win? == lose? == ongoing?
         status = self.game_status()
-        
-        #? draw and observe the env ==> We need it?
+
+        # ? draw and observe the env ==> We need it?
         env_state = self.observe()
-        
+
         return env_state, reward, status
 
-    #TODO Need Update
+    # TODO Need Update
     def get_reward(self):
-        
+
         agent, mode = self.state
-        fmode , smode = mode
-        #! Update it
+        fmode, smode = mode
+        # TODO: Needs update
         if agent == self.target:
             return 1.0 - len(self.diamonds) / len(self._diamonds)
-        
+
         # elif agent in self.diamonds:
         #     return self.reward['diamond']
-        
-        
-        #* Check for blocked :
+
+        # * Check for blocked :
         if fmode == mode_dict.get('blocked'):
             return self.reward['blocked']
-        
-        
-        #* Check for valid and home cell:
+
+        # * Check for valid and home cell:
         elif fmode == mode_dict.get('valid') and smode == mode_dict['home'].get(0):
-            pass
-        
+            return self.reward['home'].get(0)/2
+
         elif fmode == mode_dict.get('valid') and smode == mode_dict['home'].get(1):
-            pass
-        
+            return self.reward['home'].get(1)/2
+
         elif fmode == mode_dict.get('valid') and smode == mode_dict['home'].get(2):
-            pass
-        
+            return self.reward['home'].get(2)/2
+
         elif fmode == mode_dict.get('valid') and smode == mode_dict['home'].get(3):
-            pass
-        
+            return self.reward['home'].get(3)/2
+
         elif fmode == mode_dict.get('valid') and smode == mode_dict['home'].get(4):
-            pass
-        
-        
-        #* Check for valid and diamond cell
+            return self.reward['home'].get(4)/2
+
+        # * Check for valid and diamond cell
         elif fmode == mode_dict.get('valid') and smode == mode_dict['diamond'].get(0):
-            pass
-        
+            return self.reward['home'].get(0)/2
+
         elif fmode == mode_dict.get('valid') and smode == mode_dict['diamond'].get(1):
-            pass
-        
+            return self.reward['home'].get(1)/2
+
         elif fmode == mode_dict.get('valid') and smode == mode_dict['diamond'].get(2):
-            pass
+            return self.reward['home'].get(2)/2
 
         elif fmode == mode_dict.get('valid') and smode == mode_dict['diamond'].get(3):
-            pass
+            return self.reward['home'].get(3)/2
 
         elif fmode == mode_dict.get('valid') and smode == mode_dict['diamond'].get(4):
-            pass
-        
-        
-        #* Check for valid and carying diamond
-        elif fmode == mode_dict.get('valid') and smode == mode_dict['carying'].get(0):
-            pass
+            return self.reward['home'].get(4)/2
 
-        elif fmode == mode_dict.get('valid') and smode == mode_dict['carying'].get(1):
-            pass   
-        
-        elif fmode == mode_dict.get('valid') and smode == mode_dict['carying'].get(2):
-            pass
-        
-        elif fmode == mode_dict.get('valid') and smode == mode_dict['carying'].get(3):
-            pass
+        # * Check for valid and carying diamond
+        elif fmode == mode_dict.get('valid') and smode == mode_dict['carying']:
+            return self.reward['valid']
 
-        elif fmode == mode_dict.get('valid') and smode == mode_dict['carying'].get(4):
-            pass
-        
-        #* Check for invalid :
+        # elif fmode == mode_dict.get('valid') and smode == mode_dict['carying'].get(1):
+        #     pass
+
+        # elif fmode == mode_dict.get('valid') and smode == mode_dict['carying'].get(2):
+        #     pass
+
+        # elif fmode == mode_dict.get('valid') and smode == mode_dict['carying'].get(3):
+        #     pass
+
+        # elif fmode == mode_dict.get('valid') and smode == mode_dict['carying'].get(4):
+        #     pass
+
+        # * Check for invalid :
         elif fmode == mode_dict.get('invalid'):
             return self.reward['invalid']
-        
+
         # elif mode == mode_dict.get('valid'):
         #     return self.reward['valid'] #* (1 + 0.1*self.visited[agent] ** 2)
 
-    #TODO Need Update
+    # TODO Need Update
     def update_state(self, action):
-        
-        #* Set map size
-        nrows, ncols = self.maze.shape
-        
-        #* Set agent location and mode | mode == 'start' or 'blocked' or 'valid' or 'invalid'
-        (nrow, ncol), nmode = agent, mode = self.state
 
-        #? Set visited list ==> we Need it?
+        # * Set map size
+        nrows, ncols = self.maze.shape
+
+        # * Set agent location and mode | mode == 'start' or 'blocked' or 'valid' or 'invalid'
+        (nrow, ncol), nmode = agent, mode = self.state
+        fmode, smode = mode
+
+        # ? Set visited list ==> we Need it?
         if self.maze[agent] > 0.0:
             self.visited[agent] += 1  # mark visited cell
-        
-        #* Remove diamonds that we collected
-        # if agent in self.diamonds:
-        #     self.diamonds.remove(agent)   
+        if fmode == mode_dict['valid'] and smode == mode_dict['diamond'].get(0):
+            smode = (mode_dict['carying'].get(0))
+        if fmode == mode_dict['valid'] and smode == mode_dict['diamond'].get(1):
+            smode = (mode_dict['carying'].get(1))
+        if fmode == mode_dict['valid'] and smode == mode_dict['diamond'].get(2):
+            smode = (mode_dict['carying'].get(2))
+        if fmode == mode_dict['valid'] and smode == mode_dict['diamond'].get(3):
+            smode = (mode_dict['carying'].get(3))
+        if fmode == mode_dict['valid'] and smode == mode_dict['diamond'].get(4):
+            smode = (mode_dict['carying'].get(4))
 
-        
+        if fmode == mode_dict['valid'] and smode == mode_dict['home'].get(0):
+            smode = mode_dict['valid']
+        if fmode == mode_dict['valid'] and smode == mode_dict['home'].get(1):
+            smode = mode_dict['valid']
+        if fmode == mode_dict['valid'] and smode == mode_dict['home'].get(2):
+            smode = mode_dict['valid']
+        if fmode == mode_dict['valid'] and smode == mode_dict['home'].get(3):
+            smode = mode_dict['valid']
+        if fmode == mode_dict['valid'] and smode == mode_dict['home'].get(4):
+            smode = mode_dict['valid']
 
-        #* set action ==> valid_action == number of list for each move (0=left ... 3=down) | it can be empty list
+        # * Remove diamonds that we collected
+        if agent in self.diamonds:
+            self.diamonds.remove(agent)
+
+        # * set action ==> valid_action == number of list for each move (0=left ... 3=down) | it can be empty list
         valid_actions = self.valid_actions()
 
-        #* there is no action 
+        # * there is no action
         if not valid_actions:
-            nmode = mode_dict.get('blocked') 
-        
-        #* list of valid_action is not empty
+            mode = mode_dict.get('blocked'), None
+
+        # * list of valid_action is not empty
         elif action in valid_actions:
-            nmode = mode_dict.get('valid')
-            if action == LEFT:
+            fmode = mode_dict.get('valid')
+            if action == action_dict['LEFT']:
                 ncol -= 1
-            elif action == UP:
+            elif action == action_dict['UP']:
                 nrow -= 1
-            elif action == RIGHT:
+            elif action == action_dict['RIGHT']:
                 ncol += 1
-            elif action == DOWN:
+            elif action == action_dict['DOWN']:
                 nrow += 1
         else:                  # invalid action, no change in agent position
-            nmode = mode_dict.get('invalid')
+            fmode, smode = mode_dict.get('invalid'), None
+        nmode = fmode, smode
 
-        #* Update state with new location for agent and mode
+        # * Update state with new location for agent and mode
         agent = (nrow, ncol)
         self.state = (agent, nmode)
 
     def game_status(self):
-        #* Check for end game
+        # * Check for end game
         if self.total_reward < self.min_reward:
             return 'lose'
-        
-        #* if agent in target cell and diamond list is empty we win != we lose
+
+        # * if agent in target cell and diamond list is empty we win != we lose
         agent, mode = self.state
         if agent == self.target:
             if len(self.diamonds) == 0:
@@ -307,24 +333,24 @@ class TdfMaze(object):
         env_state = canvas.reshape((1, -1))
         return env_state
 
-    #? Draw envirmonet ==> we need it?
+    # ? Draw envirmonet ==> we need it?
     def draw_env(self):
         canvas = np.copy(self.maze)
         nrows, ncols = self.maze.shape
         # clear all visual marks
         for r in range(nrows):
             for c in range(ncols):
-                if canvas[r,c] > 0.0:
-                    canvas[r,c] = 1.0
+                if canvas[r, c] > 0.0:
+                    canvas[r, c] = 1.0
         # draw the diamonds
-        for r,c in self.diamonds:
-            canvas[r,c] = diamond_mark
+        for r, c in self.diamonds:
+            canvas[r, c] = diamond_mark
         # draw the agent
         agent, mode = self.state
         canvas[agent] = agent_mark
         return canvas
 
-    #* Generate valid action ==> return list of 
+    # * Generate valid action ==> return list of
     def valid_actions(self, cell=None):
         if cell is None:
             (row, col), mode = self.state
@@ -342,19 +368,20 @@ class TdfMaze(object):
         elif col == ncols-1:
             actions.remove(RIGHT)
 
-        if row>0 and self.maze[row-1,col] == 0.0:
+        if row > 0 and self.maze[row-1, col] == 0.0:
             actions.remove(UP)
-        if row<nrows-1 and self.maze[row+1,col] == 0.0:
+        if row < nrows-1 and self.maze[row+1, col] == 0.0:
             actions.remove(DOWN)
 
-        if col>0 and self.maze[row,col-1] == 0.0:
+        if col > 0 and self.maze[row, col-1] == 0.0:
             actions.remove(LEFT)
-        if col<ncols-1 and self.maze[row,col+1] == 0.0:
+        if col < ncols-1 and self.maze[row, col+1] == 0.0:
             actions.remove(RIGHT)
 
         return actions
 
-#------------ Experience Class --------------
+# ------------ Experience Class --------------
+
 
 class Experience(object):
     def __init__(self, model, max_memory=100, discount=0.97):
@@ -376,7 +403,8 @@ class Experience(object):
         return self.model.predict(env_state)[0]
 
     def get_data(self, data_size=10):
-        env_size = self.memory[0][0].shape[1]   # env_state 1d size (1st element of episode)
+        # env_state 1d size (1st element of episode)
+        env_size = self.memory[0][0].shape[1]
         mem_size = len(self.memory)
         data_size = min(mem_size, data_size)
         inputs = np.zeros((data_size, env_size))
@@ -396,18 +424,24 @@ class Experience(object):
                 targets[i, action] = reward + self.discount * Q_sa
         return inputs, targets
 
-#------------ Q-training Class --------------
+# ------------ Q-training Class --------------
+
 
 class Qtraining(object):
     def __init__(self, model, env, **opt):
         self.model = model  # Nueral Network Model
         self.env = env  # Environment (Tour De diamonds maze object)
         self.n_epoch = opt.get('n_epoch', 1000)  # Number of epochs to run
-        self.max_memory = opt.get('max_memory', 4*self.env.maze.size)  # Max memory for experiences
-        self.data_size = opt.get('data_size', int(0.75*self.env.maze.size))  # Data samples from experience replay
-        self.agent_cells = opt.get('agent_cells', [(0,0)])  # Starting cells for the agent
-        self.weights_file = opt.get('weights_file', "")  # Keras model weights file
-        self.name = opt.get('name', 'model')  # Name for saving weights and json files
+        # Max memory for experiences
+        self.max_memory = opt.get('max_memory', 4*self.env.maze.size)
+        # Data samples from experience replay
+        self.data_size = opt.get('data_size', int(0.75*self.env.maze.size))
+        # Starting cells for the agent
+        self.agent_cells = opt.get('agent_cells', [(0, 0)])
+        # Keras model weights file
+        self.weights_file = opt.get('weights_file', "")
+        # Name for saving weights and json files
+        self.name = opt.get('name', 'model')
 
         self.win_count = 0
         # If you want to continue training from a previous model,
@@ -442,7 +476,8 @@ class Qtraining(object):
             self.seconds = dt.total_seconds()
             t = format_time(self.seconds)
             fmt = "Epoch: {:3d}/{:d} | Loss: {:.4f} | Episodes: {:4d} | Wins: {:2d} | diamonds: {:d} | e: {:.3f} | time: {}"
-            print(fmt.format(epoch, self.n_epoch-1, self.loss, self.n_episodes, self.win_count, len(self.env.diamonds), self.epsilon(), t))
+            print(fmt.format(epoch, self.n_epoch-1, self.loss, self.n_episodes,
+                             self.win_count, len(self.env.diamonds), self.epsilon(), t))
             if self.win_count > 2:
                 if self.completion_check():
                     print("Completed training at epoch: %d" % (epoch,))
@@ -471,7 +506,7 @@ class Qtraining(object):
         h = self.model.fit(
             inputs,
             targets,
-            epochs = epochs,
+            epochs=epochs,
             batch_size=16,
             verbose=0,
         )
@@ -509,12 +544,12 @@ class Qtraining(object):
         n = self.win_count
         top = 0.80
         bottom = 0.08
-        if n<10:
+        if n < 10:
             e = bottom + (top - bottom) / (1 + 0.1 * n**0.5)
         else:
             e = bottom
         return e
-    
+
     def completion_check(self):
         for agent in self.agent_cells:
             if not self.run_game(agent):
@@ -532,9 +567,11 @@ class Qtraining(object):
             json.dump(self.model.to_json(), outfile)
         t = format_time(self.seconds)
         print('files: %s, %s' % (h5file, json_file))
-        print("n_epoch: %d, max_mem: %d, data: %d, time: %s" % (self.epoch, self.max_memory, self.data_size, t))
+        print("n_epoch: %d, max_mem: %d, data: %d, time: %s" %
+              (self.epoch, self.max_memory, self.data_size, t))
 
-#-----------------------------------
+# -----------------------------------
+
 
 def build_model(env, **opt):
     loss = opt.get('loss', 'mse')
@@ -548,6 +585,7 @@ def build_model(env, **opt):
     model.add(Dense(num_actions))
     model.compile(optimizer='adam', loss='mse')
     return model
+
 
 def show_env(env, fname=None):
     plt.grid('on')
@@ -568,6 +606,7 @@ def show_env(env, fname=None):
         plt.savefig(fname)
     return img
 
+
 def format_time(seconds):
     if seconds < 400:
         s = float(seconds)
@@ -578,4 +617,3 @@ def format_time(seconds):
     else:
         h = seconds / 3600.0
         return "%.2f hours" % (h,)
-
